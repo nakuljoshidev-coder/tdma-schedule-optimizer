@@ -27,7 +27,7 @@ def visualize_network(nodes, schedule_data, output_path):
     The figure shows:
     - Node positions
     - Wireless links within 500 m
-    - TDMA slot assignment
+    - TDMA slot assignments
     - Network statistics
     """
 
@@ -41,9 +41,7 @@ def visualize_network(nodes, schedule_data, output_path):
     # Create figure
     # ---------------------------------------------------------
 
-    fig, ax = plt.subplots(
-        figsize=(15, 10)
-    )
+    fig, ax = plt.subplots(figsize=(15, 10))
 
     # ---------------------------------------------------------
     # Draw wireless communication links
@@ -63,12 +61,10 @@ def visualize_network(nodes, schedule_data, output_path):
         )
 
     # ---------------------------------------------------------
-    # Determine slots
+    # Determine TDMA slots
     # ---------------------------------------------------------
 
-    slots = sorted(
-        set(slot_assignment.values())
-    )
+    slots = sorted(set(slot_assignment.values()))
 
     cmap = plt.get_cmap("tab10")
 
@@ -106,7 +102,7 @@ def visualize_network(nodes, schedule_data, output_path):
         )
 
     # ---------------------------------------------------------
-    # Node labels
+    # Add node labels
     # ---------------------------------------------------------
 
     for node, coordinates in nodes.items():
@@ -130,15 +126,15 @@ def visualize_network(nodes, schedule_data, output_path):
 
     ax.set_title(
         "TDMA Schedule Planner — Wireless Network Topology",
-        fontsize=20,
+        fontsize=18,
         fontweight="bold",
-        pad=20
+        pad=28
     )
 
     ax.text(
         0.5,
-        1.015,
-        "500 m Communication Range • Distance-2 Conflict Scheduling",
+        1.01,
+        "500 m Communication Range | Distance-2 Conflict Scheduling",
         transform=ax.transAxes,
         ha="center",
         fontsize=11
@@ -159,7 +155,7 @@ def visualize_network(nodes, schedule_data, output_path):
     )
 
     # ---------------------------------------------------------
-    # Network statistics box
+    # Network statistics
     # ---------------------------------------------------------
 
     statistics = (
@@ -173,11 +169,11 @@ def visualize_network(nodes, schedule_data, output_path):
 
     ax.text(
         0.02,
-        0.97,
+        0.03,
         statistics,
         transform=ax.transAxes,
         fontsize=10,
-        verticalalignment="top",
+        verticalalignment="bottom",
         bbox=dict(
             boxstyle="round,pad=0.6",
             alpha=0.9
@@ -208,9 +204,11 @@ def visualize_network(nodes, schedule_data, output_path):
         alpha=0.25
     )
 
-    # Keep X/Y scale equal so physical distances are represented
-    # correctly.
-    ax.set_aspect("equal", adjustable="box")
+    # Preserve physical X/Y proportions.
+    ax.set_aspect(
+        "equal",
+        adjustable="box"
+    )
 
     # ---------------------------------------------------------
     # Layout
@@ -260,7 +258,7 @@ def main():
     )
 
     # ---------------------------------------------------------
-    # Validate files
+    # Validate required files
     # ---------------------------------------------------------
 
     if not input_path.exists():
@@ -282,9 +280,7 @@ def main():
     # Load data
     # ---------------------------------------------------------
 
-    nodes = load_nodes(
-        input_path
-    )
+    nodes = load_nodes(input_path)
 
     schedule_data = load_schedule(
         schedule_path
