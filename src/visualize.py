@@ -6,39 +6,44 @@ import matplotlib.pyplot as plt
 from graph import build_network_graph
 
 
-RADIO_RANGE = 500.0
-
-
 def load_nodes(input_path):
-    """Load node coordinates from a JSON file."""
-
+    """Load node coordinates from JSON."""
     with open(input_path, "r", encoding="utf-8") as file:
         return json.load(file)
 
 
 def load_schedule(schedule_path):
     """Load the generated TDMA schedule."""
-
     with open(schedule_path, "r", encoding="utf-8") as file:
         data = json.load(file)
 
-    return data["slot_assignment"]
+    return data
 
 
-def visualize_network(nodes, slot_assignment, output_path):
+def visualize_network(nodes, schedule_data, output_path):
     """
-    Generate a visualization of the wireless network.
+    Generate a presentation-quality visualization of the TDMA network.
 
-    Nodes are positioned according to their coordinates.
-    Wireless links represent communication relationships
-    within the 500-meter radio range.
-
-    Node colors represent their assigned TDMA slots.
+    The figure shows:
+    - Node positions
+    - Wireless links within 500 m
+    - TDMA slot assignment
+    - Network statistics
     """
+
+    slot_assignment = schedule_data["slot_assignment"]
+    total_slots = schedule_data["total_slots"]
+    validation = schedule_data["validation"]
 
     graph = build_network_graph(nodes)
 
-    plt.figure(figsize=(12, 9))
+    # ---------------------------------------------------------
+    # Create figure
+    # ---------------------------------------------------------
+
+    fig, ax = plt.subplots(
+        figsize=(15, 10)
+    )
 
     # ---------------------------------------------------------
     # Draw wireless communication links
@@ -49,17 +54,16 @@ def visualize_network(nodes, slot_assignment, output_path):
         x1, y1 = nodes[node_a]
         x2, y2 = nodes[node_b]
 
-        plt.plot(
+        ax.plot(
             [x1, x2],
             [y1, y2],
-            color="gray",
-            linewidth=1,
-            alpha=0.5,
+            linewidth=1.2,
+            alpha=0.35,
             zorder=1
         )
 
     # ---------------------------------------------------------
-    # Group nodes by TDMA slot
+    # Determine slots
     # ---------------------------------------------------------
 
     slots = sorted(
@@ -69,7 +73,7 @@ def visualize_network(nodes, slot_assignment, output_path):
     cmap = plt.get_cmap("tab10")
 
     # ---------------------------------------------------------
-    # Plot nodes
+    # Draw nodes grouped by TDMA slot
     # ---------------------------------------------------------
 
     for slot in slots:
@@ -90,67 +94,133 @@ def visualize_network(nodes, slot_assignment, output_path):
             for node in slot_nodes
         ]
 
-        plt.scatter(
+        ax.scatter(
             x_coordinates,
             y_coordinates,
-            s=180,
+            s=260,
             color=cmap(slot % 10),
-            label=f"Slot {slot}",
             edgecolors="black",
-            linewidths=1,
-            zorder=2
+            linewidths=1.5,
+            label=f"Slot {slot}",
+            zorder=3
         )
 
     # ---------------------------------------------------------
-    # Add node labels
+    # Node labels
     # ---------------------------------------------------------
 
     for node, coordinates in nodes.items():
 
         x, y = coordinates
-
         slot = slot_assignment[node]
 
-        plt.annotate(
-            f"{node}\nS{slot}",
+        ax.annotate(
+            f"{node}\nSlot {slot}",
             (x, y),
-            xytext=(7, 7),
+            xytext=(8, 8),
             textcoords="offset points",
             fontsize=9,
-            zorder=3
+            fontweight="bold",
+            zorder=4
         )
 
     # ---------------------------------------------------------
-    # Draw communication radius
+    # Title
     # ---------------------------------------------------------
 
-    # The circles are intentionally not drawn around every node
-    # because overlapping 500 m circles can make the diagram
-    # difficult to read.
-
-    plt.title(
-        "TDMA Wireless Network Topology\n"
-        "Node Position, Communication Links and TDMA Slots",
-        fontsize=15
+    ax.set_title(
+        "TDMA Schedule Planner — Wireless Network Topology",
+        fontsize=20,
+        fontweight="bold",
+        pad=20
     )
 
-    plt.xlabel("X Coordinate (meters)")
-    plt.ylabel("Y Coordinate (meters)")
-
-    plt.legend(
-        title="TDMA Slots",
-        loc="best"
+    ax.text(
+        0.5,
+        1.015,
+        "500 m Communication Range • Distance-2 Conflict Scheduling",
+        transform=ax.transAxes,
+        ha="center",
+        fontsize=11
     )
 
-    plt.grid(
+    # ---------------------------------------------------------
+    # Axis labels
+    # ---------------------------------------------------------
+
+    ax.set_xlabel(
+        "X Coordinate (meters)",
+        fontsize=12
+    )
+
+    ax.set_ylabel(
+        "Y Coordinate (meters)",
+        fontsize=12
+    )
+
+    # ---------------------------------------------------------
+    # Network statistics box
+    # ---------------------------------------------------------
+
+    statistics = (
+        f"NETWORK STATISTICS\n"
+        f"Nodes: {len(nodes)}\n"
+        f"Wireless Links: {graph.number_of_edges()}\n"
+        f"Communication Range: 500 m\n"
+        f"TDMA Slots: {total_slots}\n"
+        f"Schedule: {validation}"
+    )
+
+    ax.text(
+        0.02,
+        0.97,
+        statistics,
+        transform=ax.transAxes,
+        fontsize=10,
+        verticalalignment="top",
+        bbox=dict(
+            boxstyle="round,pad=0.6",
+            alpha=0.9
+        ),
+        zorder=5
+    )
+
+    # ---------------------------------------------------------
+    # Legend
+    # ---------------------------------------------------------
+
+    legend = ax.legend(
+        title="TDMA Slot",
+        loc="upper right",
+        fontsize=10,
+        title_fontsize=11
+    )
+
+    legend.get_frame().set_alpha(0.9)
+
+    # ---------------------------------------------------------
+    # Grid
+    # ---------------------------------------------------------
+
+    ax.grid(
         True,
         linestyle="--",
-        alpha=0.3
+        alpha=0.25
     )
 
-    plt.axis("equal")
+    # Keep X/Y scale equal so physical distances are represented
+    # correctly.
+    ax.set_aspect("equal", adjustable="box")
+
+    # ---------------------------------------------------------
+    # Layout
+    # ---------------------------------------------------------
 
     plt.tight_layout()
+
+    # ---------------------------------------------------------
+    # Save high-resolution image
+    # ---------------------------------------------------------
 
     plt.savefig(
         output_path,
@@ -164,10 +234,12 @@ def visualize_network(nodes, slot_assignment, output_path):
 def main():
 
     # ---------------------------------------------------------
-    # Project paths
+    # Locate project files
     # ---------------------------------------------------------
 
-    project_root = Path(__file__).resolve().parent.parent
+    project_root = (
+        Path(__file__).resolve().parent.parent
+    )
 
     input_path = (
         project_root
@@ -188,20 +260,20 @@ def main():
     )
 
     # ---------------------------------------------------------
-    # Validate required files
+    # Validate files
     # ---------------------------------------------------------
 
     if not input_path.exists():
 
         raise FileNotFoundError(
-            f"Node input file not found: {input_path}"
+            f"Node input file not found:\n{input_path}"
         )
 
     if not schedule_path.exists():
 
         raise FileNotFoundError(
-            "Schedule file not found.\n"
-            "Run the optimizer first:\n\n"
+            "Schedule file not found.\n\n"
+            "Run the optimizer first:\n"
             "python src/main.py "
             "--input examples/nodes.json"
         )
@@ -210,9 +282,11 @@ def main():
     # Load data
     # ---------------------------------------------------------
 
-    nodes = load_nodes(input_path)
+    nodes = load_nodes(
+        input_path
+    )
 
-    slot_assignment = load_schedule(
+    schedule_data = load_schedule(
         schedule_path
     )
 
@@ -222,15 +296,18 @@ def main():
 
     visualize_network(
         nodes,
-        slot_assignment,
+        schedule_data,
         output_path
     )
 
-    print("\nVisualization generated successfully.")
-
-    print(
-        f"Saved to: {output_path}"
-    )
+    print()
+    print("=" * 60)
+    print("NETWORK VISUALIZATION")
+    print("=" * 60)
+    print()
+    print("Visualization generated successfully.")
+    print(f"Saved to: {output_path}")
+    print()
 
 
 if __name__ == "__main__":
