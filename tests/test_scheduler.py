@@ -1,7 +1,9 @@
 import sys
 import os
+import json
 
 import networkx as nx
+import pytest
 
 # Add the src directory to Python's import path
 sys.path.insert(
@@ -22,14 +24,10 @@ from scheduler import (
     validate_schedule,
     create_schedule_matrix,
 )
+from main import load_nodes
 
 
 def test_network_graph_is_created():
-    """
-    Test that the wireless network graph
-    is created correctly from node coordinates.
-    """
-
     nodes = {
         "A": [0, 0],
         "B": [300, 0],
@@ -39,24 +37,12 @@ def test_network_graph_is_created():
     graph = build_network_graph(nodes)
 
     assert isinstance(graph, nx.Graph)
-
     assert len(graph.nodes) == 3
-
-    # A and B are 300 m apart,
-    # so they should have a wireless link.
     assert graph.has_edge("A", "B")
-
-    # A and C are 1000 m apart,
-    # so they should NOT have a wireless link.
     assert not graph.has_edge("A", "C")
 
 
 def test_conflict_graph_contains_wireless_links():
-    """
-    Test that directly connected wireless nodes
-    appear in the conflict graph.
-    """
-
     network = nx.Graph()
 
     network.add_edge("A", "B")
@@ -69,11 +55,6 @@ def test_conflict_graph_contains_wireless_links():
 
 
 def test_schedule_has_no_conflicts():
-    """
-    Test that the generated TDMA schedule
-    does not assign the same slot to conflicting nodes.
-    """
-
     network = nx.Graph()
 
     network.add_edges_from([
@@ -97,11 +78,6 @@ def test_schedule_has_no_conflicts():
 
 
 def test_schedule_matrix():
-    """
-    Test that the Slot x Node matrix
-    is generated correctly.
-    """
-
     slot_assignment = {
         "A": 0,
         "B": 1,
@@ -113,16 +89,11 @@ def test_schedule_matrix():
     )
 
     assert nodes == ["A", "B", "C"]
-
     assert matrix[0] == [1, 0, 1]
     assert matrix[1] == [0, 1, 0]
 
 
 def test_every_node_has_a_slot():
-    """
-    Test that every node receives a TDMA slot.
-    """
-
     network = nx.Graph()
 
     network.add_edges_from([
@@ -130,9 +101,7 @@ def test_every_node_has_a_slot():
         ("B", "C"),
     ])
 
-    conflict_graph = build_conflict_graph(
-        network
-    )
+    conflict_graph = build_conflict_graph(network)
 
     slot_assignment = color_conflict_graph(
         conflict_graph
@@ -146,11 +115,6 @@ def test_every_node_has_a_slot():
 
 
 def test_slots_are_non_negative():
-    """
-    Test that no node receives an invalid
-    negative TDMA slot.
-    """
-
     network = nx.Graph()
 
     network.add_edges_from([
@@ -158,9 +122,7 @@ def test_slots_are_non_negative():
         ("B", "C"),
     ])
 
-    conflict_graph = build_conflict_graph(
-        network
-    )
+    conflict_graph = build_conflict_graph(network)
 
     slot_assignment = color_conflict_graph(
         conflict_graph
@@ -168,3 +130,58 @@ def test_slots_are_non_negative():
 
     for slot in slot_assignment.values():
         assert slot >= 0
+
+
+def test_input_requires_16_nodes(tmp_path):
+    nodes = {
+        "Node_01": [0, 0],
+        "Node_02": [300, 0],
+    }
+
+    input_file = tmp_path / "invalid_nodes.json"
+
+    with open(input_file, "w", encoding="utf-8") as file:
+        json.dump(nodes, file)
+
+    with pytest.raises(ValueError, match="exactly 16 nodes"):
+        load_nodes(input_file)
+
+
+def test_input_rejects_invalid_coordinates(tmp_path):
+    nodes = {
+        f"Node_{i:02d}": [0, 0]
+        for i in range(1, 17)
+    }
+
+    nodes["Node_01"] = [0]
+
+    input_file = tmp_path / "invalid_coordinates.json"
+
+    with open(input_file, "w", encoding="utf-8") as file:
+        json.dump(nodes, file)
+
+    with pytest.raises(
+        ValueError,
+        match="must have coordinates"
+    ):
+        load_nodes(input_file)
+
+
+def test_input_rejects_non_numeric_coordinates(tmp_path):
+    nodes = {
+        f"Node_{i:02d}": [0, 0]
+        for i in range(1, 17)
+    }
+
+    nodes["Node_01"] = ["x", 0]
+
+    input_file = tmp_path / "invalid_values.json"
+
+    with open(input_file, "w", encoding="utf-8") as file:
+        json.dump(nodes, file)
+
+    with pytest.raises(
+        ValueError,
+        match="must contain numeric values"
+    ):
+        load_nodes(input_file)

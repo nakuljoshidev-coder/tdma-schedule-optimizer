@@ -1,283 +1,287 @@
+import argparse
 import json
 import csv
-import os
+from pathlib import Path
 
 from graph import build_network_graph
-
 from scheduler import (
     build_conflict_graph,
     color_conflict_graph,
     validate_schedule,
-    create_schedule_matrix
+    create_schedule_matrix,
 )
 
 
-def load_nodes(filename):
-    """Load node coordinates from JSON."""
+def load_nodes(input_file):
+    """Load and validate node coordinates from a JSON file."""
+    with open(input_file, "r", encoding="utf-8") as file:
+        nodes = json.load(file)
 
-    with open(filename, "r") as file:
-        return json.load(file)
-
-
-def save_schedule_json(
-    filename,
-    slot_assignment,
-    total_slots,
-    validation_status
-):
-    """Save the TDMA schedule as JSON."""
-
-    data = {
-        "total_slots": total_slots,
-        "validation": validation_status,
-        "slot_assignment": slot_assignment
-    }
-
-    with open(filename, "w") as file:
-        json.dump(data, file, indent=4)
-
-
-def save_schedule_csv(
-    filename,
-    nodes,
-    matrix
-):
-    """Save the TDMA Slot x Node matrix as CSV."""
-
-    with open(
-        filename,
-        "w",
-        newline=""
-    ) as file:
-
-        writer = csv.writer(file)
-
-        # Header
-        writer.writerow(
-            ["Slot"] + nodes
+    if not isinstance(nodes, dict):
+        raise ValueError(
+            "Input JSON must contain an object of node coordinates."
         )
 
-        # Matrix
-        for slot_number, row in enumerate(matrix):
+    if len(nodes) != 16:
+        raise ValueError(
+            f"Expected exactly 16 nodes, but received {len(nodes)}."
+        )
 
+    for node_name, coordinates in nodes.items():
+        if not isinstance(coordinates, list) or len(coordinates) != 2:
+            raise ValueError(
+                f"{node_name} must have coordinates in the form [x, y]."
+            )
+
+        if not all(
+            isinstance(value, (int, float))
+            for value in coordinates
+        ):
+            raise ValueError(
+                f"{node_name} coordinates must contain numeric values."
+            )
+
+    return nodes
+
+
+def save_schedule_json(output_path, slot_assignment, conflicts):
+    """Save the generated TDMA schedule as JSON."""
+    total_slots = (
+        max(slot_assignment.values()) + 1
+        if slot_assignment
+        else 0
+    )
+
+    output_data = {
+        "total_slots": total_slots,
+        "validation": "VALID" if not conflicts else "INVALID",
+        "slot_assignment": slot_assignment,
+    }
+
+    with open(output_path, "w", encoding="utf-8") as file:
+        json.dump(output_data, file, indent=4)
+
+
+def save_schedule_csv(output_path, nodes, matrix):
+    """Save the Slot x Node schedule matrix as CSV."""
+    with open(
+        output_path,
+        "w",
+        newline="",
+        encoding="utf-8"
+    ) as file:
+        writer = csv.writer(file)
+
+        writer.writerow(["Slot"] + nodes)
+
+        for slot_number, row in enumerate(matrix):
             writer.writerow(
-                [slot_number] + row
+                [f"Slot {slot_number}"] + row
             )
 
 
 def main():
-
-    # ==================================================
-    # 1. LOAD NODE DATA
-    # ==================================================
-
-    nodes = load_nodes(
-        "../examples/nodes.json"
+    parser = argparse.ArgumentParser(
+        description="TDMA Schedule Planner and Optimizer"
     )
 
-
-    # ==================================================
-    # 2. BUILD WIRELESS NETWORK
-    # ==================================================
-
-    network_graph = build_network_graph(
-        nodes
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="Path to the JSON file containing node coordinates.",
     )
 
+    parser.add_argument(
+        "--output-dir",
+        default="outputs",
+        help="Directory where generated schedules will be saved.",
+    )
 
-    # ==================================================
-    # 3. BUILD DISTANCE-2 CONFLICT GRAPH
-    # ==================================================
+    args = parser.parse_args()
+
+    input_path = Path(args.input)
+    output_dir = Path(args.output_dir)
+
+    if not input_path.exists():
+        raise FileNotFoundError(
+            f"Input file not found: {input_path}"
+        )
+
+    nodes = load_nodes(input_path)
+
+    print("\n" + "=" * 80)
+    print("TDMA SCHEDULE PLANNER AND OPTIMIZER")
+    print("=" * 80)
+
+    print(f"\nInput file: {input_path}")
+    print(f"Total nodes: {len(nodes)}")
+
+    # ---------------------------------------------------------
+    # Step 1: Build wireless network graph
+    # ---------------------------------------------------------
+
+    network_graph = build_network_graph(nodes)
+
+    print(
+        f"Wireless links: "
+        f"{network_graph.number_of_edges()}"
+    )
+
+    # ---------------------------------------------------------
+    # Step 2: Build Distance-2 conflict graph
+    # ---------------------------------------------------------
 
     conflict_graph = build_conflict_graph(
         network_graph
     )
 
+    print(
+        f"Conflict links: "
+        f"{conflict_graph.number_of_edges()}"
+    )
 
-    # ==================================================
-    # 4. COLOR CONFLICT GRAPH
-    # ==================================================
+    # ---------------------------------------------------------
+    # Step 3: Assign TDMA slots
+    # ---------------------------------------------------------
 
     slot_assignment = color_conflict_graph(
         conflict_graph
     )
 
-
-    # ==================================================
-    # 5. CALCULATE SLOT COUNT
-    # ==================================================
-
-    total_slots = (
-        max(slot_assignment.values()) + 1
-    )
-
-
-    # ==================================================
-    # 6. VALIDATE SCHEDULE
-    # ==================================================
+    # ---------------------------------------------------------
+    # Step 4: Validate schedule
+    # ---------------------------------------------------------
 
     conflicts = validate_schedule(
         conflict_graph,
         slot_assignment
     )
 
-    schedule_valid = len(conflicts) == 0
-
-
-    # ==================================================
-    # 7. CREATE SCHEDULE MATRIX
-    # ==================================================
+    # ---------------------------------------------------------
+    # Step 5: Create Slot x Node matrix
+    # ---------------------------------------------------------
 
     matrix_nodes, matrix = create_schedule_matrix(
         slot_assignment
     )
 
+    total_slots = (
+        max(slot_assignment.values()) + 1
+        if slot_assignment
+        else 0
+    )
 
-    # ==================================================
-    # 8. CREATE OUTPUT DIRECTORY
-    # ==================================================
+    # ---------------------------------------------------------
+    # Node -> Slot Assignment
+    # ---------------------------------------------------------
 
-    output_directory = "../outputs"
+    print("\n" + "-" * 80)
+    print("NODE → SLOT ASSIGNMENT")
+    print("-" * 80)
 
-    os.makedirs(
-        output_directory,
+    for node in sorted(slot_assignment):
+        print(
+            f"{node:<12} → Slot "
+            f"{slot_assignment[node]}"
+        )
+
+    # ---------------------------------------------------------
+    # Schedule Matrix
+    # ---------------------------------------------------------
+
+    print("\n" + "-" * 80)
+    print("SCHEDULE MATRIX")
+    print("-" * 80)
+
+    # Header
+    print(
+        f"{'Slot':<10}",
+        end=""
+    )
+
+    for node in matrix_nodes:
+        print(
+            f"{node:>10}",
+            end=""
+        )
+
+    print()
+
+    # Rows
+    for slot_number, row in enumerate(matrix):
+        print(
+            f"{f'Slot {slot_number}':<10}",
+            end=""
+        )
+
+        for value in row:
+            print(
+                f"{value:>10}",
+                end=""
+            )
+
+        print()
+
+    # ---------------------------------------------------------
+    # Schedule Validation
+    # ---------------------------------------------------------
+
+    print("\n" + "-" * 80)
+    print("SCHEDULE VALIDATION")
+    print("-" * 80)
+
+    if conflicts:
+        print(
+            "INVALID: Conflicting nodes share "
+            "the same TDMA slot."
+        )
+
+        for node_a, node_b, slot in conflicts:
+            print(
+                f"  {node_a} - {node_b} "
+                f"→ Slot {slot}"
+            )
+    else:
+        print(
+            "VALID: No conflicting nodes share "
+            "the same TDMA slot."
+        )
+
+    print(f"\nTotal slots used: {total_slots}")
+
+    # ---------------------------------------------------------
+    # Save outputs
+    # ---------------------------------------------------------
+
+    output_dir.mkdir(
+        parents=True,
         exist_ok=True
     )
 
-
-    # ==================================================
-    # 9. SAVE JSON
-    # ==================================================
-
-    json_file = os.path.join(
-        output_directory,
-        "schedule.json"
-    )
+    json_output = output_dir / "schedule.json"
+    csv_output = output_dir / "schedule.csv"
 
     save_schedule_json(
-        json_file,
+        json_output,
         slot_assignment,
-        total_slots,
-        "VALID" if schedule_valid else "INVALID"
-    )
-
-
-    # ==================================================
-    # 10. SAVE CSV
-    # ==================================================
-
-    csv_file = os.path.join(
-        output_directory,
-        "schedule.csv"
+        conflicts
     )
 
     save_schedule_csv(
-        csv_file,
+        csv_output,
         matrix_nodes,
         matrix
     )
 
+    print("\n" + "-" * 80)
+    print("OUTPUT FILES")
+    print("-" * 80)
 
-    # ==================================================
-    # 11. DISPLAY NETWORK
-    # ==================================================
+    print(f"JSON: {json_output}")
+    print(f"CSV : {csv_output}")
 
-    print("\nTDMA NETWORK TOPOLOGY")
-    print("=" * 60)
-
-    print(
-        f"Total nodes: "
-        f"{len(network_graph.nodes)}"
-    )
-
-    print(
-        f"Total wireless links: "
-        f"{len(network_graph.edges)}"
-    )
-
-
-    # ==================================================
-    # 12. DISPLAY CONFLICT GRAPH
-    # ==================================================
-
-    print("\nDISTANCE-2 CONFLICT GRAPH")
-    print("-" * 60)
-
-    print(
-        f"Total conflict links: "
-        f"{len(conflict_graph.edges)}"
-    )
-
-
-    # ==================================================
-    # 13. DISPLAY SLOT ASSIGNMENTS
-    # ==================================================
-
-    print("\nTDMA SLOT ASSIGNMENTS")
-    print("-" * 60)
-
-    for node, slot in sorted(
-        slot_assignment.items()
-    ):
-
-        print(
-            f"{node}: Slot {slot}"
-        )
-
-
-    print("\n" + "=" * 60)
-
-    print(
-        f"Total slots used: "
-        f"{total_slots}"
-    )
-
-    print("=" * 60)
-
-
-    # ==================================================
-    # 14. VALIDATION
-    # ==================================================
-
-    print("\nSCHEDULE VALIDATION")
-    print("-" * 60)
-
-    if schedule_valid:
-
-        print(
-            "VALID: No conflicting nodes "
-            "share the same TDMA slot."
-        )
-
-    else:
-
-        print(
-            f"INVALID: {len(conflicts)} "
-            f"conflict(s) detected."
-        )
-
-        for node_a, node_b, slot in conflicts:
-
-            print(
-                f"{node_a} and {node_b} "
-                f"both use Slot {slot}"
-            )
-
-
-    # ==================================================
-    # 15. OUTPUT FILES
-    # ==================================================
-
-    print("\nOUTPUT FILES")
-    print("-" * 60)
-
-    print(
-        f"JSON: {json_file}"
-    )
-
-    print(
-        f"CSV : {csv_file}"
-    )
+    print("\nOptimization completed successfully.")
+    print("=" * 80)
 
 
 if __name__ == "__main__":
