@@ -1,0 +1,22 @@
+{
+    "total_slots": 7,
+    "validation": "VALID",
+    "slot_assignment": {
+        "Node_11": 0,
+        "Node_07": 1,
+        "Node_06": 2,
+        "Node_10": 3,
+        "Node_12": 4,
+        "Node_14": 5,
+        "Node_15": 6,
+        "Node_08": 2,
+        "Node_05": 1,
+        "Node_09": 4,
+        "Node_13": 6,
+        "Node_04": 3,
+        "Node_16": 3,
+        "Node_03": 0,
+        "Node_01": 0,
+        "Node_02": 1
+    }
+}
