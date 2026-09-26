@@ -1,409 +1,372 @@
-# TDMA Schedule Planner and Optimizer
+TDMA Schedule Planner and Optimizer
 
-A Python-based simulator for planning TDMA (Time Division Multiple
-Access) transmission schedules in a wireless network.
+A Python-based simulator for centralized TDMA (Time Division Multiple Access) schedule planning in a wireless network using graph theory and NetworkX.
 
-The project models wireless radios as graph nodes and communication
-relationships as graph edges. It then constructs a Distance-2 conflict
-graph and uses graph-coloring heuristics to generate a conflict-free
-TDMA schedule.
+The project models wireless radios as graph nodes and communication links as graph edges. A Distance-2 conflict graph is then constructed to identify nodes that cannot transmit in the same TDMA slot.
 
----
+Project Objective
 
-## 1. Project Objective
-
-The objective of this project is to design a centralized schedule
-planner for a TDMA-based wireless network.
+The objective is to generate a conflict-free TDMA schedule for a wireless network while allowing spatial reuse of time slots.
 
 The optimizer:
 
-- Accepts coordinates of 16 wireless nodes.
-- Builds a wireless connectivity graph.
-- Uses a 500-meter communication range.
-- Identifies 1-hop and 2-hop interference relationships.
-- Constructs a Distance-2 conflict graph.
-- Uses graph-coloring heuristics for slot assignment.
-- Allows spatial reuse of TDMA slots when nodes are sufficiently
-  separated in the conflict graph.
-- Validates the generated schedule.
-- Produces a Slot × Node boolean matrix.
-- Exports the generated schedule as JSON and CSV.
+Accepts static coordinates of wireless nodes as JSON input.
+Uses a 500-meter communication range to construct the wireless network.
+Builds a Distance-2 conflict graph.
+Prevents nodes that are 1-hop or 2-hop apart from sharing a slot.
+Uses graph-coloring heuristics for TDMA slot assignment.
+Evaluates multiple coloring strategies.
+Validates the generated schedule.
+Produces a Slot × Node Boolean matrix.
+Produces a Node → Slot mapping.
+Exports the generated schedule to JSON and CSV.
+Generates a visualization of the wireless topology and slot assignments.
+Technology Stack
+Python 3
+NetworkX
+Pytest
+Matplotlib
+Graph Theory
+TDMA Scheduling
+Distance-2 Graph Coloring
+System Architecture
+Node Coordinates
+       │
+       ▼
+Wireless Network Graph
+       │
+       │ 500 m communication range
+       ▼
+Distance-2 Conflict Graph
+       │
+       ▼
+Graph Coloring Heuristics
+       │
+       ├── Largest First
+       ├── Smallest Last
+       ├── DSATUR
+       └── Randomized Greedy
+       │
+       ▼
+TDMA Slot Assignment
+       │
+       ├── Node → Slot Mapping
+       ├── Slot × Node Matrix
+       ├── JSON Output
+       └── CSV Output
+       │
+       ▼
+Schedule Validation
+Project Structure
+tdma-schedule-optimizer/
+│
+├── docs/
+│   ├── VMN_TDMA_Technical_Documentation.pdf
+│   └── VMN_TDMA_Schedule_Optimizer_Presentation.pptx
+│
+├── examples/
+│   └── nodes.json
+│
+├── outputs/
+│   ├── schedule.json
+│   ├── schedule.csv
+│   └── network_topology.png
+│
+├── src/
+│   ├── graph.py
+│   ├── main.py
+│   ├── scheduler.py
+│   └── visualize.py
+│
+├── tests/
+│   └── test_scheduler.py
+│
+├── .gitignore
+├── README.md
+└── requirements.txt
+How It Works
+1. Wireless Network Graph
 
----
+Each radio is represented as a node.
 
-## 2. Problem Model
+An edge is created between two nodes when their Euclidean distance is within the configured 500-meter communication range.
 
-Each wireless radio is represented as a node in a graph.
+Distance(A, B) ≤ 500 m
+        │
+        ▼
+Communication link exists
+2. Distance-2 Conflict Graph
 
-An edge is created between two nodes when their Euclidean distance
-is less than or equal to 500 meters.
+The optimizer creates a second graph representing TDMA interference constraints.
 
-The resulting graph represents wireless connectivity.
+Two nodes are considered conflicting when their shortest-path distance in the wireless network is:
 
-For TDMA scheduling, simply preventing direct neighbors from sharing
-a slot is insufficient.
+1 hop, or
+2 hops
 
-The implementation therefore uses Distance-2 graph coloring.
+Therefore, directly connected nodes and nodes sharing a common neighbor cannot receive the same TDMA slot.
 
-Two nodes are considered conflicting when their shortest-path distance
-in the wireless graph is:
+Nodes separated by more than two hops may reuse a slot.
 
-- 1 hop
-- 2 hops
+3. Graph Coloring
 
-Nodes more than 2 hops apart are allowed to reuse the same slot.
+TDMA slots are represented as graph colors.
 
----
+Each node receives a color corresponding to its assigned slot.
 
-## 3. System Architecture
+The optimizer evaluates several coloring strategies:
 
-The overall processing pipeline is:
+Largest First
+Smallest Last
+DSATUR / Saturation Largest First
+100 randomized greedy orderings
 
-    Node Coordinates
-           |
-           v
-    Input Validation
-           |
-           v
-    Wireless Network Graph
-           |
-           v
-    Distance-2 Conflict Graph
-           |
-           v
-    Graph Coloring Optimizer
-           |
-           v
-    TDMA Slot Assignment
-           |
-           v
-    Schedule Validation
-           |
-           v
-    Slot × Node Matrix
-           |
-           +------------------+
-           |                  |
-           v                  v
-      schedule.json      schedule.csv
+The coloring using the fewest slots among the evaluated candidates is selected.
 
----
+The resulting slot count is a heuristic result for the given topology and is not claimed to be the mathematical minimum.
 
-## 4. Graph Construction
+4. Schedule Validation
 
-The wireless network is represented using NetworkX.
+After coloring, every conflict edge is checked.
 
-For every pair of nodes:
+A schedule is considered valid when no pair of conflicting nodes has the same slot.
 
-    distance = sqrt((x2-x1)^2 + (y2-y1)^2)
+Input Format
 
-If:
-
-    distance <= 500 meters
-
-an edge is created between the two nodes.
-
-The graph therefore represents the physical communication
-relationships between radios.
-
----
-
-## 5. Distance-2 Conflict Graph
-
-The wireless connectivity graph is transformed into a conflict graph.
-
-For every pair of nodes, the shortest-path distance is calculated.
-
-A conflict edge is created when:
-
-    shortest_path_distance <= 2
-
-Therefore:
-
-    1-hop relationship → conflict
-    2-hop relationship → conflict
-    >2-hop relationship → possible spatial reuse
-
-The conflict graph is then used as the input to the coloring algorithm.
-
----
-
-## 6. TDMA Slot Assignment
-
-The scheduling problem is represented as a graph-coloring problem.
-
-Each color represents a TDMA time slot.
-
-Therefore:
-
-    Graph Node → Wireless Radio
-    Graph Edge → Scheduling Conflict
-    Graph Color → TDMA Slot
-
-The optimizer evaluates multiple coloring strategies.
-
-### Strategies
-
-1. Largest First
-2. Smallest Last
-3. DSATUR
-4. 100 deterministic randomized greedy colorings
-
-Each candidate coloring is evaluated according to the number of
-TDMA slots used.
-
-The candidate using the fewest slots is selected.
-
-The randomized candidates use fixed seeds so that the optimization
-process is reproducible.
-
----
-
-## 7. Why Multiple Heuristics?
-
-The exact minimum graph-coloring problem is computationally difficult
-for general graphs.
-
-Instead of relying on a single greedy ordering, this project evaluates
-multiple heuristics.
-
-This provides several candidate schedules and selects the candidate
-with the smallest number of slots.
-
-The result is therefore a heuristic solution rather than a mathematical
-proof of the minimum possible number of slots.
-
----
-
-## 8. Schedule Validation
-
-After coloring, every pair of nodes connected in the conflict graph
-is checked.
-
-A schedule is considered valid when:
-
-    conflict_node_A.slot != conflict_node_B.slot
-
-for every conflict edge.
-
-If any conflicting nodes share a slot, the schedule is reported as
-invalid.
-
----
-
-## 9. Schedule Matrix
-
-The optimizer generates a Slot × Node matrix.
-
-The matrix uses:
-
-    1 → Node transmits in that slot
-    0 → Node does not transmit in that slot
+The optimizer accepts a JSON file containing node names and their [x, y] coordinates.
 
 Example:
 
-    Slot     Node_01  Node_02  Node_03
-    Slot 0      1        0        1
-    Slot 1      0        1        0
+{
+    "Node_01": [0.0, 0.0],
+    "Node_02": [300.0, 0.0],
+    "Node_03": [900.0, 0.0],
+    "Node_04": [900.0, 300.0]
+}
 
-This representation can be used as the basis for a TDMA schedule
-planner or a later simulation interface.
+The supplied example contains 16 wireless nodes.
 
----
+Running the Optimizer
 
-## 10. CLI Usage
+From the project root:
 
-Run the optimizer from the project root using:
+python src/main.py --input examples/nodes.json
 
-    python src/main.py --input examples/nodes.json
+The program generates:
 
-A different topology can be supplied using another JSON file:
+outputs/schedule.json
+outputs/schedule.csv
 
-    python src/main.py --input examples/my_network.json
+The CLI also displays:
 
-The output directory can also be specified:
+Number of nodes
+Number of wireless links
+Number of conflict links
+Selected coloring strategy
+Node-to-slot assignment
+Slot × Node matrix
+Schedule validation result
+Total number of slots
+Running the Visualization
 
-    python src/main.py \
-        --input examples/nodes.json \
-        --output-dir outputs
+After generating the schedule:
 
----
+python src/visualize.py
 
-## 11. Input Format
+This generates:
 
-The input JSON contains node names and their [x, y] coordinates.
+outputs/network_topology.png
 
-Example:
+The visualization displays:
 
-    {
-        "Node_01": [0.0, 0.0],
-        "Node_02": [300.0, 0.0],
-        "Node_03": [900.0, 0.0]
-    }
+Node locations
+Wireless links
+TDMA slot assignments
+Network statistics
+Running Tests
 
-The current implementation expects exactly 16 nodes for the
-assignment.
+Install dependencies:
 
-Input validation checks:
+pip install -r requirements.txt
 
-- JSON must contain an object.
-- Exactly 16 nodes must be provided.
-- Each node must contain two coordinates.
-- Coordinates must be numeric.
+Run the test suite:
 
----
+python -m pytest
 
-## 12. Output
+The test suite covers:
 
-The optimizer produces:
+Wireless network graph construction
+Distance-2 conflict graph construction
+Schedule validity
+Schedule matrix generation
+Node slot assignment
+Non-negative slot values
+Node-count validation
+Coordinate validation
+Non-numeric coordinate validation
 
-### schedule.json
+Current test result:
+
+9 passed
+Optimization Strategy
+
+The optimizer uses multiple graph-coloring approaches rather than relying on a single greedy ordering.
+
+The evaluated strategies are:
+
+Largest First
+Smallest Last
+DSATUR / Saturation Largest First
+100 randomized greedy orderings
+
+The resulting candidate schedules are compared by the number of TDMA slots used, and the candidate with the smallest slot count is selected.
+
+Because graph coloring is computationally difficult in the general case, this implementation uses heuristic optimization rather than claiming an exact globally optimal solution.
+
+Current Result
+
+For the supplied 16-node topology, the implemented heuristic optimizer generates a conflict-free schedule using 7 TDMA slots.
+
+The generated schedule is automatically validated before the output is written.
+
+The current result is a heuristic solution and does not claim that 7 is the theoretical minimum number of slots.
+
+Generated Outputs
+Schedule JSON
 
 Contains:
 
-- Total number of slots
-- Schedule validation result
-- Node-to-slot assignments
+Node coordinates
+Network statistics
+Node-to-slot assignment
+Schedule matrix
+Validation result
+Total slots
+Schedule CSV
 
-### schedule.csv
+Provides the Slot × Node Boolean representation in tabular form.
 
-Contains the Slot × Node boolean matrix.
+Network Visualization
 
----
+Provides a visual representation of:
 
-## 13. Example Run
+Wireless links
+Node positions
+TDMA slot assignments
+Network statistics
+Validation
 
-For the current 16-node test topology:
+The generated schedule is checked against the complete Distance-2 conflict graph.
 
-    Total nodes: 16
-    Wireless links: 27
-    Conflict links: 53
+For every conflict edge:
 
-The optimizer evaluates:
+slot(node_A) != slot(node_B)
 
-    103 coloring strategies
+must hold.
 
-The selected coloring currently produces:
+The current test suite contains 9 automated tests covering graph creation, conflict construction, scheduling, matrix generation, slot validity, and input validation.
 
-    7 TDMA slots
+Complexity
 
-The generated schedule is validated successfully:
+The wireless graph construction examines pairs of nodes and therefore has quadratic pairwise behavior with respect to the number of nodes.
 
-    VALID: No conflicting nodes share the same TDMA slot.
+The Distance-2 conflict graph is constructed using shortest-path distances between node pairs.
 
-Note that the 7-slot result is a heuristic coloring result and is not
-claimed to be the mathematically minimum coloring.
+The coloring stage uses heuristic graph-coloring algorithms rather than an exact minimum-color solver because the minimum graph-coloring problem is computationally difficult for general graphs.
 
----
+Part 1 Status
 
-## 14. Project Structure
+Completed
 
-    tdma-schedule-optimizer/
-    |
-    +-- docs/
-    |
-    +-- examples/
-    |   +-- nodes.json
-    |
-    +-- outputs/
-    |   +-- schedule.json
-    |   +-- schedule.csv
-    |
-    +-- src/
-    |   +-- graph.py
-    |   +-- scheduler.py
-    |   +-- main.py
-    |
-    +-- tests/
-    |   +-- test_scheduler.py
-    |
-    +-- .gitignore
-    +-- README.md
-    +-- requirements.txt
+The centralized Python TDMA Schedule Planner and Optimizer implements the core Part 1 functionality of the assignment.
 
----
+Part 2 — EMANE Integration
 
-## 15. Testing
+Part 2 is an advanced extension involving EMANE-based wireless simulation.
 
-The project uses pytest for automated testing.
+The planned integration is:
 
-Run:
+Python TDMA Optimizer
+        │
+        ▼
+Generated TDMA Schedule
+        │
+        ▼
+Schedule Conversion / Bridge
+        │
+        ▼
+EMANE TDMA Radio Model
+        │
+        ▼
+Network Simulation
 
-    python -m pytest
+The EMANE integration is documented as an implementation approach and is separate from the completed centralized Part 1 optimizer.
 
-Current test coverage includes:
+Engineering Considerations
 
-- Wireless graph construction
-- Wireless connectivity validation
-- Conflict graph construction
-- Schedule conflict validation
-- Schedule matrix generation
-- Node slot assignment
-- Non-negative slot validation
-- Invalid node-count handling
-- Invalid coordinate handling
-- Non-numeric coordinate handling
+The current implementation intentionally models interference using a Distance-2 graph abstraction.
 
-Current result:
+This means that nodes within one or two wireless hops are treated as conflicting regardless of detailed physical-layer characteristics.
 
-    9 passed
+A future physical-layer implementation could incorporate additional parameters such as:
 
----
+Signal strength
+Interference power
+Propagation characteristics
+SINR
+Radio-specific transmission behavior
+Limitations
+The optimizer uses heuristic graph coloring.
+The selected number of slots is not guaranteed to be globally optimal.
+The current model represents interference using Distance-2 graph constraints rather than a detailed physical-layer SINR model.
+The current implementation is centralized.
+EMANE integration is not required for the core Part 1 implementation.
+Reproducibility
 
-## 16. Technology Stack
+The project dependencies are listed in:
 
-- Python
-- NetworkX
-- Pytest
-- Graph Theory
-- TDMA Scheduling
-- Distance-2 Graph Coloring
-- JSON
-- CSV
+requirements.txt
 
----
+Create a virtual environment:
 
-## 17. Current Status
+python -m venv .venv
 
-### Part 1 — Centralized TDMA Optimizer
+Activate the environment:
 
-Status: Implemented
+.venv\Scripts\Activate.ps1
 
-The current implementation supports:
+Install dependencies:
 
-- 16-node JSON input
-- 500-meter connectivity modeling
-- Distance-2 conflict detection
-- Multiple graph-coloring heuristics
-- Schedule validation
-- Slot × Node matrix generation
-- JSON output
-- CSV output
-- CLI execution
-- Automated testing
+pip install -r requirements.txt
 
-### Part 2 — EMANE Integration
+Run tests:
 
-Status: Planned
+python -m pytest
 
-Future work includes investigating:
+Run the optimizer:
 
-- EMANE environment setup
-- TDMA Radio Model configuration
-- Schedule-to-XML/ProtoBuf conversion
-- Integration of the generated schedule with a network simulation
+python src/main.py --input examples/nodes.json
 
----
+Generate the visualization:
 
-## 18. Future Improvements
+python src/visualize.py
+Documentation
 
-Potential improvements include:
+The repository includes:
 
-- Additional topology input formats
-- More advanced graph-coloring heuristics
-- Performance benchmarking
-- Visualization of the wireless topology
-- Visualization of the conflict graph
-- EMANE integration
-- Schedule export for a real TDMA radio model
-- Simulation-based evaluation
+Technical Documentation PDF
+Project Presentation PPTX
+
+Both documents provide additional details about the architecture, implementation, results, engineering decisions, limitations, and EMANE integration approach.
+
+Author
+
+Nakul Joshi
+
+B.Tech — Computer Science and Engineering
+
+Project Context
+
+Developed as part of the Vaan Megam Networks Wireless Protocol Development Internship assignment.
+
+The project focuses on centralized TDMA schedule planning using graph modeling, Distance-2 graph coloring, heuristic optimization, schedule validation, and network visualization.
